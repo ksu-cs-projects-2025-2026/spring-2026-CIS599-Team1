@@ -1,3 +1,77 @@
+# NIST SP800-90B EntropyAssessment — Build & Run Guide (Windows + WSL)
+
+This guide walks through how to:
+1) Install **WSL (Ubuntu)** on Windows  
+2) Install all required Linux packages  
+3) Clone our team repo (already contains the NIST codebase)  
+4) Build the SP800-90B tools  
+5) Run the included sample datasets successfully  
+
+---
+
+## 1) Install WSL (Ubuntu) on Windows
+
+### 1.1 Open PowerShell as Administrator
+- Right click the **Start** menu  
+- Select **Windows PowerShell (Admin)**
+
+### 1.2 Install WSL
+```powershell
+wsl --install
+```
+
+### 1.3 Restart Windows 
+### 1.4 Launch Ubuntu on the WSL Terminal
+- Open 'WSL' from your windows search menu
+- Create a username/password if you have not already
+
+## 2) Install Required Packages for WSL Ubuntu
+- Run this inside WSL:
+```powershell
+sudo apt update
+sudo apt install -y build-essential make g++ \
+libjsoncpp-dev libdivsufsort-dev libssl-dev libbz2-dev \
+libmpfr-dev libgmp-dev
+```
+
+## 3) Clone the Team Repo
+- In WSL Ubuntu:
+```powershell
+cd ~
+git clone https://github.com/ksu-cs-projects-2025-2026/spring-2026-CIS599-Team1.git
+cd spring-2026-CIS599-Team1
+```
+
+## 4) Build the SP800-90B Tools
+- In WSL Ubuntu:
+```powershell
+cd cpp
+make clean
+make
+```
+- Then, confirm the build output with:
+```powershell
+ls
+```
+- Now, check to make sure you have been doing everything right, if you run this in /cpp it should return a plethora of responses
+```powershell
+./ea_iid
+./ea_non_iid
+./ea_restart
+./ea_conditioning
+./ea_transpose
+```
+- Finally, from the ccp/ directory, do these individually:
+```powershell
+./ea_iid -i ../bin/truerand_1bit.bin 1
+./ea_iid -i ../bin/truerand_4bit.bin 4
+./ea_iid -i ../bin/truerand_8bit.bin 8
+```
+
+Great! We should not all have our basic environment ready for development. 
+
+
+
 # EntropyAssessment
 
 Cryptographic random bit generators (RBGs), also known as random number generators (RNGs), require a noise source that produces digital outputs with some level of unpredictability, expressed as min-entropy. [SP 800-90B](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-90B.pdf) provides a standardized means of estimating the quality of a source of entropy.
