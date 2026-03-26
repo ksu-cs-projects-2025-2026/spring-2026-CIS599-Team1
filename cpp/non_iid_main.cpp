@@ -12,6 +12,7 @@
 #include "non_iid/multi_mcw_test.h"
 #include "non_iid/compression_test.h"
 #include "non_iid/markov_test.h"
+#include "non_iid/paq6v2_predictor_test.h"
 
 #include <getopt.h>
 #include <limits.h>
@@ -484,6 +485,33 @@ int main(int argc, char* argv[]) {
 
     tc6310.testCaseNumber = "LZ78Y Test";
     testRun.testCases.push_back(tc6310);
+
+    // PAQ6v2 Predictor Test
+    NonIidTestCase tc6311;
+ 
+    if (((data.alph_size > 2) || !initial_entropy)) {
+        ret_min_entropy = paq6v2_predictor_test(data.bsymbols, data.blen, 2, verbose, "Bitstring");
+        if (ret_min_entropy >= 0) {
+            if (verbose == 2) printf("\tPAQ6v2 Predictor Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
+            tc6311.h_bitstring = ret_min_entropy;
+            H_bitstring = min(ret_min_entropy, H_bitstring);
+        }
+    }
+
+
+    if (initial_entropy && (data.alph_size == 2)) {
+        ret_min_entropy = paq6v2_predictor_test(data.symbols, data.len, 2, verbose, "Literal");
+        if (ret_min_entropy >= 0) {
+            if (verbose == 2) printf("\tPAQ6v2 Predictor Test Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
+            tc6311.h_original = ret_min_entropy;
+            H_original = min(ret_min_entropy, H_original);
+        }
+    }
+
+
+    tc6311.testCaseNumber = "PAQ6v2Predictor";
+    testRun.testCases.push_back(tc6311);
+
 
     double h_assessed;
     h_assessed = data.word_size;
