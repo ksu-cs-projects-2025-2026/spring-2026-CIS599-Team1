@@ -8,24 +8,43 @@
 
 using namespace std;
 
+// ----------------------------------------------------------------------------
+// NonIidTestCase
+//
+// A plain data holder that stores the results of each non-IID statistical test
+// for one run of the engine (Section 6.3 of SP800-90B).  It inherits from
+// TestCaseBase so common fields like name and status are included.
+//
+// Fields are initialized to -1.0 when not yet calculated.  The GetAsJson()
+// method exports only filled values, to keep output compact and clear.
+// ----------------------------------------------------------------------------
 class NonIidTestCase : public TestCaseBase {
 public:
 
+    // Quantities from bit-string tests (t-tuple, LRS, etc).
     double bin_t_tuple_res = -1.0;
     double t_tuple_res = -1.0;
     double bin_lrs_res = -1.0;
     double lrs_res = -1.0;
-    double h_r = -1.0;
-    double h_c = -1.0;
-    double h_i = -1.0;
-    double n_in = -1.0;
-    double n_out = -1.0;
-    double nw = -1.0;
-    double h_in = -1.0;
-    double h_out = -1.0;
-    double h_p = -1.0;
-    //bool vetted = true;
-    
+
+    // Quantities from conditioning (Section 3.1.5.1.2).
+    double h_r = -1.0;    // Estimated min-entropy of raw input
+    double h_c = -1.0;    // Estimated min-entropy after conditioning
+    double h_i = -1.0;    // Estimated min-entropy of input to conditioner
+
+    // Conditioning parameters (n_in, n_out, nw, h_in, h_out).
+    double n_in = -1.0;   // Input block size (bits)
+    double n_out = -1.0;  // Output block size (bits)
+    double nw = -1.0;     // Noise source output size (bits)
+    double h_in = -1.0;   // Min-entropy per input block
+    double h_out = -1.0;  // Min-entropy per output block
+
+    double h_p = -1.0;    // Final chosen min-entropy used by this test case
+    // ------------------------------------------------------------------------
+    // Convert all values that have been computed into a clean JSON object.
+    // Fields left at the default -1.0 are omitted because they are not yet
+    // computed for this dataset.
+    // ------------------------------------------------------------------------
     Json::Value GetAsJson() {
         Json::Value json = TestCaseBase::GetBaseJson();
         

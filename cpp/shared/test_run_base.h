@@ -7,6 +7,22 @@
 
 using namespace std;
 
+// ---------------------------------------------------------------------------
+// TestRunBase
+//
+// Shared test-run metadata for all tools.  Each top-level tool (IID/non-IID/etc)
+// stores one TestRunBase and then adds tool-specific data (test cases, results).
+//
+// Common fields:
+//   - timestamp: record when the tool was run
+//   - sha256: hash of input file for traceability
+//   - filename: tested file path
+//   - errorLevel/errorMsg: execution status
+//   - type: tool type or purpose
+//   - commandline: complete run command for audit
+//
+// GetBaseJson() builds a minimal JSON object shared by all child objects.
+// ---------------------------------------------------------------------------
 class TestRunBase {
 public:
     string timestamp;
@@ -18,6 +34,12 @@ public:
     string commandline;
 
 protected:
+    // -----------------------------------------------------------------------
+    // GetBaseJson
+    //
+    // Create a JSON object with shared fields (timestamp, command line, errors,
+    // tool version, and file identity).  Child test run classes append more data.
+    // -----------------------------------------------------------------------
     Json::Value GetBaseJson() {
         Json::Value baseJson;
         baseJson["dateTimeStamp"] = timestamp;

@@ -20,6 +20,18 @@
 #include <fstream>
 #include <openssl/sha.h>
 
+// ---------------------------------------------------------------------------
+// print_usage
+//
+// Print command-line usage notes and exit.  Called when command-line arguments
+// are missing or invalid. This is a helper only and does not perform testing.
+//
+// This like standard CLI safety/UX helper
+// When arguments are invalid (missing required filename, wrong option, etc.), the program needs to:
+// 1. tell the user the exact syntax,
+// 2. show the option meanings,
+// 3. stop running (no partial test execution on wrong input).
+// ---------------------------------------------------------------------------
 [[ noreturn ]] void print_usage() {
     printf("Usage is: ea_non_iid [-i|-c] [-a|-t] [-v] [-q] [-l <index>,<samples> ] <file_name> [bits_per_symbol]\n\n");
     printf("\t <file_name>: Must be relative path to a binary file with at least 1 million entries (samples).\n");
@@ -57,8 +69,19 @@
     printf("\t --version: Prints tool version information");
     printf("\n");
     exit(-1);
-}
+} // overall this reports usage line, option definitions, semantics of initial vs conditioned entropy, and required file format/symbols
 
+// -----------------------------------------------------------------------
+// main
+//
+// Tool entry point for the non-IID entropy assessment (ea_non_iid). This
+// function does the following steps:
+//  1) parse CLI args (+ version / help)
+//  2) read input file (or partial window)
+//  3) run the SP800-90B non-IID test series (6.3.1-6.3.10)
+//  4) compute H_original / H_bitstring and overall h_assessed
+//  5) set JSON output and exit status
+// -----------------------------------------------------------------------
 int main(int argc, char* argv[]) {
 
     bool initial_entropy, all_bits;
@@ -97,6 +120,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // 1) Command line options
+    //    -i/-c: initial entropy vs conditioned estimation
+    //    -a/-t: take full bitstring vs truncated bitstring for bit-string tests
+    //    -v: verbosity
+    //    -q: quiet mode (minimal stdout)
+    //    -l: offset + size window for partial input sampling
+    //    -o: JSON output file path
     while ((opt = getopt(argc, argv, "icatvql:o:")) != -1) {
         switch (opt) {
             case 'i':
@@ -182,6 +212,7 @@ int main(int argc, char* argv[]) {
     testRun.sha256 = hash;
     testRun.filename = file_path;
 
+    // Parse args
     if (argc == 2) {
         // get bits per word
         inint = atoi(argv[1]);
@@ -253,12 +284,15 @@ int main(int argc, char* argv[]) {
     H_original = data.word_size;
     H_bitstring = 1.0;
 
+    // 2) Run each non-IID entropy estimator in sequence (SP800-90B section 6.3).
+    //    Each estimator writes results to a dedicated NonIidTestCase, then
+    //    we push to testRun.testCases for final JSON output.
+    //
+    //    6.3.1 - Most Common Value
     if ((verbose == 1) || (verbose == 2)) {
         printf("\nRunning non-IID tests...\n\n");
         printf("Running Most Common Value Estimate...\n");
     }
-
-    // Section 6.3.1 - Estimate entropy with Most Common Value
     NonIidTestCase tc631;
 
     if (((data.alph_size > 2) || !initial_entropy)) {
@@ -513,6 +547,9 @@ int main(int argc, char* argv[]) {
     testRun.testCases.push_back(tc6311);
 
 
+    // 3) Aggregate final result:
+    //    h_assessed = min(H_original, data.word_size * H_bitstring)
+    //    as specified by SP800-90B for non-IID initial or conditioned estimate.
     double h_assessed;
     h_assessed = data.word_size;
 
