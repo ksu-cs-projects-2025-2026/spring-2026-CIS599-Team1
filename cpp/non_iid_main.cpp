@@ -525,15 +525,19 @@ int main(int argc, char* argv[]) {
  
     if (((data.alph_size > 2) || !initial_entropy)) {
         ret_min_entropy = paq6v2_predictor_test(data.bsymbols, data.blen, 2, verbose, "Bitstring");
+        //only continue from this point if the test returned a valid entropy estimate
         if (ret_min_entropy >= 0) {
+            // so if it is verbose, we print out the debugging
             if (verbose == 2) printf("\tPAQ6v2 Predictor Test Estimate (bit string) = %f / 1 bit(s)\n", ret_min_entropy);
+            //storing the test's bitstring results
             tc6311.h_bitstring = ret_min_entropy;
             H_bitstring = min(ret_min_entropy, H_bitstring);
         }
     }
 
-
+    // used for the literal PAQ test with the original symbols are bits
     if (initial_entropy && (data.alph_size == 2)) {
+        //running the same test but with the original estimate symbols 
         ret_min_entropy = paq6v2_predictor_test(data.symbols, data.len, 2, verbose, "Literal");
         if (ret_min_entropy >= 0) {
             if (verbose == 2) printf("\tPAQ6v2 Predictor Test Estimate = %f / %d bit(s)\n", ret_min_entropy, data.word_size);
@@ -542,7 +546,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
+    // giving the result a readable param and appending it to the json output
     tc6311.testCaseNumber = "PAQ6v2Predictor";
     testRun.testCases.push_back(tc6311);
 
