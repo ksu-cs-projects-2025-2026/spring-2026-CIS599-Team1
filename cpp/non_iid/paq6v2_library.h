@@ -680,7 +680,44 @@ namespace paq6v2{
   }
 
 
+// A MultiMixer averages the output of 2 mixers using different contexts
+  class MultiMixer {
+    enum {MINMEM=5};  // Lowest MEM to use 2 mixers
+    Mixer m1, m2;
+  public:
+    MultiMixer(): m1(16), m2(16) {}
+    void write(int n0, int n1) {
+      m1.write(n0, n1);
+      if (MEM>=MINMEM)
+        m2.write(n0, n1);
+    }
+    void add(int n0, int n1) {
+      if (MEM>=MINMEM) {
+        m1.add(n0, n1);
+        m2.add(n0, n1);
+      }
+      else
+        m1.add(n0, n1);
+    }
+    int predict() {
+      U32 p1=m1.predict((ch(1) >> 5) + 8*(ch.pos(0, 3) < ch.pos(32, 3)));
+      if (MEM>=MINMEM) {
+        U32 p2=m2.predict((ch(1) >> 6)+4*(ch(2) >> 6));
+        return (p1+p2)/2;
+      }
+      else
+        return p1;
+    }
+    void update(int y) {
+      m1.update(y);
+        if (MEM>=MINMEM)
+      m2.update(y);
+    }
+    U32 getC() const {return 256;}
+    U32 getN() const {return m1.getN();}
+  };
 
+  MultiMixer mixer;
   //////////////////////////// CounterMap ////////////////////////////
 
   /* CounterMap maintains a model and one context
