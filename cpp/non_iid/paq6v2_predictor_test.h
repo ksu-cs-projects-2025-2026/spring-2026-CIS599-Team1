@@ -21,25 +21,6 @@ double paq6v2_predictor_test(uint8_t *data, long len, int alph_size, int verbose
     long bit_len = len;
     std::vector<uint8_t> bitbuf;
 
-    // Convert to bitstream if input is not already binary.
-    if (alph_size != 2) {
-        int bits_per_symbol = 0;
-        while ((1 << bits_per_symbol) < alph_size) bits_per_symbol++;
-        if (bits_per_symbol < 1) bits_per_symbol = 1;
-
-        bitbuf.resize(len * bits_per_symbol);
-        uint8_t *pOut = &bitbuf[0];
-
-        for (long i = 0; i < len; ++i) {
-            uint8_t sym = data[i];
-            for (int b = bits_per_symbol - 1; b >= 0; --b) {
-                *pOut++ = (sym >> b) & 1;
-            }
-        }
-        bits = bitbuf.data();
-        bit_len = bitbuf.size();
-    }
-
     paq6v2::Predictor predictor;
 
     long C = 0;               // correct predictions
