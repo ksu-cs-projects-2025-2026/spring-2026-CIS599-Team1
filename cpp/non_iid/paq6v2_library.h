@@ -17,7 +17,7 @@ using namespace std;
 
 namespace paq6v2{
   const int PSCALE=4096;  // Integer scale for representing probabilities
-  int MEM=3;        // Use about 6 MB * 2^MEM bytes of memory                      
+  int MEM=1;        // Use about 6 MB * 2^MEM bytes of memory                      
 
   template <class T> inline int size(const T& t) {return t.size();}
 
