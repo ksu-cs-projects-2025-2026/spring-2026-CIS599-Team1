@@ -970,35 +970,103 @@ namespace paq6v2{
     DefaultModel defaultModel;
     CharModel charModel;
 
-    U32 nextp;   // p()
-    U32 context; // (kept if used elsewhere)
+    enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
+      SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
 
+    // Scale probability p into a context in the range 0 to 1K-1 by
+    // stretching the ends of the range.
+    class SSEMap {
+      U16 table[PSCALE];
+    public:
+      int operator()(int p) const {return table[p];}
+      SSEMap();
+    } ssemap;  // functoid
+
+    // Secondary source encoder element
+    struct SSEContext {
+      U8 c1, n;  // Count of 1's, count of bits
+      int p() const {return PSCALE*(c1*64+1)/(n*64+2);}
+      void update(int y) {
+        if (y)
+          ++c1;
+        if (++n>254) {  // Roll over count overflows
+          c1/=2;
+          n/=2;
+        }
+      }
+      SSEContext(): c1(0), n(0) {}
+    };
+
+    SSEContext (*sse)[SSE2+1];  // [SSE1][SSE2+1] context, mapped probability
+    U32 nextp;   // p()
+    U32 ssep;    // Output of sse
+    U32 context; // SSE context
   public:
     Predictor();
-    int p() const { return nextp; }  // Returns pr(y = 1) * PSCALE
-    void update(int y);              // Update model with bit y = 0 or 1
+    int p() const {return nextp;}  // Returns pr(y = 1) * PSCALE
+    void update(int y);  // Update model with bit y = 0 or 1
   };
 
-  Predictor::Predictor()
-    : nextp(PSCALE / 2), context(0)
-  {
-      ch.init();
+  Predictor::SSEMap::SSEMap() {
+    for (int i=0; i<PSCALE; ++i) {
+      int p=int(64*log((i+0.5)/(PSCALE-0.5-i))+512);
+      if (p>1023) p=1023;
+      if (p<0) p=0;
+      table[i]=p;
+    }
+  }
+
+  Predictor::Predictor(): sse(0), nextp(PSCALE/2), ssep(512), context(0) {
+    ch.init();
+
+    // Initialize to sse[context][ssemap(p)] = p
+    if (MEM>=1) {
+      sse=(SSEContext(*)[SSE2+1]) new SSEContext[SSE1][SSE2+1];
+      int N=PSCALE;
+      int oldp=SSE2+1;
+      for (int i=N-1; i>=0; --i) {
+        int p=(ssemap(i*PSCALE/N)+SSESCALE/2)/SSESCALE;
+        int n=1+N*N/((i+1)*(N-i));
+        if (n>254) n=254;
+        int c1=(i*n+N/2)/N;
+        for (int j=oldp-1; j>=p; --j) {
+          for (int k=0; k<SSE1; ++k) {
+            sse[k][j].n=n;
+            sse[k][j].c1=c1;
+          }
+        }
+        oldp=p;
+      }
+    }
   }
 
   inline void Predictor::update(int y) {
 
-      // Adjust model mixing weights
-      mixer.update(y);
+    // Update the bins below and above the last input probability, ssep
+    if (MEM>=1) {
+      sse[context][ssep/SSESCALE].update(y);
+      sse[context][ssep/SSESCALE+1].update(y);
+    }
 
-      // Update individual models
-      ch.update(y);
-      defaultModel.model(); 
-      charModel.model();
+    // Adjust model mixing weights
+    mixer.update(y);
 
-      // Combine probabilities
-      nextp = mixer.predict();
+    // Update individual models
+    ch.update(y);
+    defaultModel.model(); 
+    charModel.model();
 
-      // Update context if needed elsewhere
-      context = (ch(0) * 4 + ch(1) / 64) * 2 + (ch.pos(0, 3) < ch.pos(32, 3));
+    // Combine probabilities
+    nextp=mixer.predict();
+
+    // Get final probability, interpolate SSE and average with original
+    if (MEM>=1) {
+      context=(ch(0)*4+ch(1)/64)*2+(ch.pos(0,3)<ch.pos(32,3));  // for SSE
+      ssep=ssemap(nextp);
+      U32 wt=ssep%SSESCALE;
+      U32 i=ssep/SSESCALE;
+      nextp=(((sse[context][i].p()*(SSESCALE-wt)+sse[context][i+1].p()*wt)
+        /SSESCALE)*3+nextp)/4;
+    }
   }
 }
