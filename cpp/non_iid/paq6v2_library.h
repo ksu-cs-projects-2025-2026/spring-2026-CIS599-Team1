@@ -947,6 +947,45 @@ namespace paq6v2{
     }
   }
 
+  /*
+  //////////////////////////// biasAwareCharModel ////////////////////////////
+
+// include bit level bias contexts that are used when the source has a small edge over 0.5
+// (this is to target our biggest deviation on the 0.9 djenrandom min-entropy dataset specifically)
+  class BiasAwareCharModel: public Model {
+    Counter global; // to store the bias in the whole stream
+    Counter slow_bias; // extra counter
+
+    int slow_bias_tick; //flag to update slow bias
+    int slow_bias_period;
+
+  public:
+    BiasAwareCharModel(): slow_bias_tick(0), slow_bias_period(8) {}
+    void model();
+  };
+
+  inline void BiasAwareCharModel::model() 
+  {
+    // reads the most recent bit and stores it
+    const int y = ch(ch.bpos() == 0)&1;  // the last input bit
+
+    // updates the global bias with that bit ^ 
+    global.add(y);
+    // increments the tick on the slow bias
+    if (++slow_bias_tick>=slow_bias_period) 
+    {
+      slow_bias.add(y) ; // update the long term bias counter
+      slow_bias_tick = 0; // resets tge timer after the counter is updated
+    }
+
+    // sending the bias of the model to the mixer
+    mixer.write(global.get0() , global.get1() );
+    mixer.add(slow_bias.get0() , slow_bias.get1() );
+  }
+  
+  */
+  
+
   //////////////////////////// Predictor ////////////////////////////
 
   /* A Predictor adjusts the model probability using SSE and passes it
@@ -969,6 +1008,7 @@ namespace paq6v2{
     // Models
     DefaultModel defaultModel;
     CharModel charModel;
+    // BiasAwareCharModel biasAwareCharModel;
 
     enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
       SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
@@ -1055,6 +1095,7 @@ namespace paq6v2{
     ch.update(y);
     defaultModel.model(); 
     charModel.model();
+    // biasAwareCharModel.model();
 
     // Combine probabilities
     nextp=mixer.predict();
