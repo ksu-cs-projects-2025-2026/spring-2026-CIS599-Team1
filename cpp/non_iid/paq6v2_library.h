@@ -947,6 +947,7 @@ namespace paq6v2{
     }
   }
 
+<<<<<<< HEAD
   //////////////////////////// charRevModel ////////////////////////////
 
   // CharRevModel mirrors CharModel, but it learns on bit-reversed bytes
@@ -1042,6 +1043,144 @@ namespace paq6v2{
     }
   }
 
+=======
+   //////////////////////////// bitwiseCharModel ////////////////////////////
+
+  // A BitwiseCharModel contains n-gram models from 0 to 9
+
+  class BitwiseCharModel: public Model {
+  enum {N=10};        // Number of models
+  Counter *t0, *t1;   // Model orders 0, 1 [256], [65536] 
+  CounterMap t2, t3, t4, t5, t6, t7, t8, t9;  // Model orders 2-9
+  U32 *cxt;           // bit-level contexts
+  U32 bitHistory;     // rolling bit history
+
+  Counter *cp0, *cp1; // Pointers to counters in t0, t1
+
+public:
+  BitwiseCharModel(): t0(new Counter[256]), t1(new Counter[65536]),
+      t2(MEM+15), t3(MEM+17), t4(MEM+18), t5((MEM>=1)*(MEM+18)),
+      t6((MEM>=3)*(MEM+18)), t7((MEM>=3)*(MEM+18)),
+      t8((MEM>=5)*(MEM+18-(MEM>=6))),
+      t9((MEM>=5)*(MEM+18-(MEM>=6))),
+      cxt(new U32[N]),
+      bitHistory(0) {
+      cp0 = &t0[0];
+      cp1 = &t1[0];
+      memset(cxt, 0, N*sizeof(U32));
+      memset(t0, 0, 256*sizeof(Counter));
+      memset(t1, 0, 65536*sizeof(Counter));
+  }
+  void model();         // Update and predict
+};
+
+inline void BitwiseCharModel::model() {
+
+  // Get current bit
+  int y = ch() & 1;   // current input bit
+
+  // Update bit history (shift register)
+  bitHistory = ((bitHistory << 1) | y) & 0xFFFFFFFF;
+
+  // Update contexts EVERY BIT
+  for (int i = N - 1; i > 0; --i) {
+    cxt[i] = cxt[i - 1] ^ paq_hash(bitHistory, i);
+  }
+
+  // initialize lowest context from bit history
+  cxt[0] = paq_hash(bitHistory, 0);
+
+  // Update context models EVERY BIT
+  t2.update(cxt[2]);
+  t3.update(cxt[3]);
+  t4.update(cxt[4]);
+
+  if (MEM >= 1)
+    t5.update(cxt[5]);
+
+  if (MEM >= 3) {
+    t6.update(cxt[6]);
+    t7.update(cxt[7]);
+  }
+
+  if (MEM >= 5) {
+    t8.update(cxt[8]);
+    t9.update(cxt[9]);
+  }
+
+  // Update order-0 and order-1 bit models
+  cp0->add(y);
+  cp1->add(y);
+
+  // Update pointers based on current bit history
+  cp0 = &t0[y];
+
+  // Order-1 now uses last bit as context
+  int prevBit = (bitHistory >> 1) & 1;
+  cp1 = &t1[y + 2 * prevBit];
+
+  // Send predictions to mixer
+  mixer.write(cp0->get0(), cp0->get1());
+  mixer.write(cp1->get0(), cp1->get1());
+
+  t2.write();
+  t3.write();
+  t4.write();
+
+  if (MEM >= 1)
+    t5.add();
+
+  if (MEM >= 3) {
+    t6.write();
+    t7.add();
+  }
+
+  if (MEM >= 5) {
+    t8.write();
+    t9.add();
+  }
+}
+
+  /*
+  //////////////////////////// biasAwareCharModel ////////////////////////////
+
+// include bit level bias contexts that are used when the source has a small edge over 0.5
+// (this is to target our biggest deviation on the 0.9 djenrandom min-entropy dataset specifically)
+  class BiasAwareCharModel: public Model {
+    Counter global; // to store the bias in the whole stream
+    Counter slow_bias; // extra counter
+
+    int slow_bias_tick; //flag to update slow bias
+    int slow_bias_period;
+
+  public:
+    BiasAwareCharModel(): slow_bias_tick(0), slow_bias_period(8) {}
+    void model();
+  };
+
+  inline void BiasAwareCharModel::model() 
+  {
+    // reads the most recent bit and stores it
+    const int y = ch(ch.bpos() == 0)&1;  // the last input bit
+
+    // updates the global bias with that bit ^ 
+    global.add(y);
+    // increments the tick on the slow bias
+    if (++slow_bias_tick>=slow_bias_period) 
+    {
+      slow_bias.add(y) ; // update the long term bias counter
+      slow_bias_tick = 0; // resets tge timer after the counter is updated
+    }
+
+    // sending the bias of the model to the mixer
+    mixer.write(global.get0() , global.get1() );
+    mixer.add(slow_bias.get0() , slow_bias.get1() );
+  }
+  
+  */
+  
+>>>>>>> 71a3c8c5b13e3e686b88660b5c7d600c23ea89ab
+
   //////////////////////////// Predictor ////////////////////////////
 
   /* A Predictor adjusts the model probability using SSE and passes it
@@ -1064,7 +1203,13 @@ namespace paq6v2{
     // Models
     DefaultModel defaultModel;
     CharModel charModel;
+<<<<<<< HEAD
     CharRevModel charRevModel;
+=======
+    // BiasAwareCharModel biasAwareCharModel;
+    // BitwiseCharModel bitwiseCharModel;
+
+>>>>>>> 71a3c8c5b13e3e686b88660b5c7d600c23ea89ab
 
     enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
       SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
@@ -1151,7 +1296,13 @@ namespace paq6v2{
     ch.update(y);
     defaultModel.model(); 
     charModel.model();
+<<<<<<< HEAD
     charRevModel.model();
+=======
+    // biasAwareCharModel.model();
+    // bitwiseCharModel.model();
+
+>>>>>>> 71a3c8c5b13e3e686b88660b5c7d600c23ea89ab
 
     // Combine probabilities
     nextp=mixer.predict();
