@@ -1045,7 +1045,12 @@ namespace paq6v2{
 
    //////////////////////////// bitwiseCharModel ////////////////////////////
 
-  // A BitwiseCharModel contains n-gram models from 0 to 9
+// A BitwiseCharModel is an n-gram context model (orders 0–9) that operates
+// at the *bit level* instead of the byte level.
+//
+// Unlike CharModel, which updates contexts once per byte, this model updates
+// its state on every incoming bit. It maintains a rolling bit history and
+// derives multiple context hashes from that history to drive prediction.
 
   class BitwiseCharModel: public Model {
   enum {N=10};        // Number of models
@@ -1145,6 +1150,7 @@ inline void BitwiseCharModel::model() {
 
 // include bit level bias contexts that are used when the source has a small edge over 0.5
 // (this is to target our biggest deviation on the 0.9 djenrandom min-entropy dataset specifically)
+  */
   class BiasAwareCharModel: public Model {
     Counter global; // to store the bias in the whole stream
     Counter slow_bias; // extra counter
@@ -1175,10 +1181,6 @@ inline void BitwiseCharModel::model() {
     mixer.write(global.get0() , global.get1() );
     mixer.add(slow_bias.get0() , slow_bias.get1() );
   }
-  
-  */
-  
->>>>>>> 71a3c8c5b13e3e686b88660b5c7d600c23ea89ab
 
   //////////////////////////// Predictor ////////////////////////////
 
@@ -1202,13 +1204,9 @@ inline void BitwiseCharModel::model() {
     // Models
     DefaultModel defaultModel;
     CharModel charModel;
-<<<<<<< HEAD
+    BiasAwareCharModel biasAwareCharModel;
+    BitwiseCharModel bitwiseCharModel;
     CharRevModel charRevModel;
-=======
-    // BiasAwareCharModel biasAwareCharModel;
-    // BitwiseCharModel bitwiseCharModel;
-
->>>>>>> 71a3c8c5b13e3e686b88660b5c7d600c23ea89ab
 
     enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
       SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
@@ -1295,13 +1293,9 @@ inline void BitwiseCharModel::model() {
     ch.update(y);
     defaultModel.model(); 
     charModel.model();
-<<<<<<< HEAD
-    charRevModel.model();
-=======
-    // biasAwareCharModel.model();
-    // bitwiseCharModel.model();
-
->>>>>>> 71a3c8c5b13e3e686b88660b5c7d600c23ea89ab
+    //bitwiseCharModel.model();
+    //biasAwareCharModel.model();
+    //charRevModel.model();
 
     // Combine probabilities
     nextp=mixer.predict();
