@@ -947,6 +947,86 @@ namespace paq6v2{
     }
   }
 
+ //////////////////////////// charComplementModel ////////////////////////////
+
+  // CharComplementModel is a variation of CharModel that uses the bitwise
+  // complement of bytes (~byte & 255) for building contexts instead of the
+  // original byte values. This provides a different perspective on byte
+  // patterns, potentially capturing inverted dependencies useful for
+  // randomness testing.
+
+  class CharComplementModel: public Model {
+    enum {N=10};        // Number of models
+    Counter *t0, *t1;   // Model orders 0, 1 [256], [65536]
+    CounterMap t2, t3, t4, t5, t6, t7, t8, t9;  // Model orders 2-9
+    U32 *cxt;           // Context hashes [N]
+    Counter *cp0, *cp1; // Pointers to counters in t0, t1
+  public:
+    CharComplementModel(): t0(new Counter[256]), t1(new Counter[65536]),  
+                          t2(MEM+15), t3(MEM+17), t4(MEM+18), t5((MEM>=1)*(MEM+18)),
+                          t6((MEM>=3)*(MEM+18)), t7((MEM>=3)*(MEM+18)),
+                          t8((MEM>=5)*(MEM+18-(MEM>=6))),
+                          t9((MEM>=5)*(MEM+18-(MEM>=6))),
+                          cxt(new U32[N]) {
+      cp0=&t0[0];
+      cp1=&t1[0];
+      memset(cxt, 0, N*sizeof(U32));
+      memset(t0, 0, 256*sizeof(Counter));
+      memset(t1, 0, 65536*sizeof(Counter));
+    }
+    void model();         // Update and predict
+  };
+
+  // Update with bit y, put array of 0 counts in n0 and 1 counts in n1
+  inline void CharComplementModel::model() {
+
+    // Update models
+    int y = ch(ch.bpos()==0)&1;  // last input bit
+    cp0->add(y);
+    cp1->add(y);
+
+    // Update context using complemented bytes
+    if (ch.bpos()==0) {
+      for (int i=1; i<N && i <= MEM; ++i)
+        cxt[i]=cxt[i-1]*257+((~ch(i-1))&255)+1;
+      cxt[0]=0;
+      t2.update(cxt[2]);
+      t3.update(cxt[3]);
+      t4.update(cxt[4]);
+      if (MEM>=1)
+        t5.update(cxt[5]);
+      if (MEM>=3) {
+        t6.update(cxt[6]);
+        t7.update(cxt[7]);
+      }
+      if (MEM>=5) {
+        t8.update(cxt[8]);
+        t9.update(cxt[9]);
+      }
+    }
+    U8 current = (~ch()) & 255;
+    U8 prev = (MEM >= 1) ? ((~ch(1)) & 255) : 0;
+    cp0 = &t0[current];
+    cp1 = &t1[current + 256 * prev];
+
+    // Write predictions to the mixer
+    mixer.write(cp0->get0(), cp0->get1());
+    mixer.write(cp1->get0(), cp1->get1());
+    t2.write();
+    t3.write();
+    t4.write();
+    if (MEM>=1)
+      t5.write();
+    if (MEM>=3) {
+      t6.write();
+      t7.write();
+    }
+    if (MEM>=5) {
+      t8.write();
+      t9.write();
+    }
+  }
+
   //////////////////////////// charRevModel ////////////////////////////
 
   // CharRevModel mirrors CharModel, but it learns on bit-reversed bytes
@@ -1207,6 +1287,7 @@ inline void BitwiseCharModel::model() {
     BiasAwareCharModel biasAwareCharModel;
     BitwiseCharModel bitwiseCharModel;
     CharRevModel charRevModel;
+    CharComplementModel charComplementModel;
 
     enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
       SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
@@ -1293,6 +1374,7 @@ inline void BitwiseCharModel::model() {
     ch.update(y);
     defaultModel.model(); 
     charModel.model();
+    //charComplementModel.model();
     //bitwiseCharModel.model();
     //biasAwareCharModel.model();
     //charRevModel.model();
