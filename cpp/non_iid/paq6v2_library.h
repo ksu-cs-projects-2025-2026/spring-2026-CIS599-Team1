@@ -947,6 +947,101 @@ namespace paq6v2{
     }
   }
 
+  //////////////////////////// charRevModel ////////////////////////////
+
+  // CharRevModel mirrors CharModel, but it learns on bit-reversed bytes
+  // instead of the original byte values.
+  //
+  // Compared to CharModel:
+  // - CharModel hashes and indexes using the raw previous/current bytes.
+  // - CharRevModel first reverses the bit order in each byte, then uses
+  //   those reversed bytes for the same order-0 through order-9 contexts.
+  //   For example, the order-1 context in CharModel is the previous byte abcdefgh,
+  //  is treated as hgfedcba.
+  class CharRevModel: public Model {
+    enum {N=10};
+    Counter *t0, *t1;
+    CounterMap t2, t3, t4, t5, t6, t7, t8, t9;
+    U32 *cxt;
+    Counter *cp0, *cp1;
+
+    static U8 reverseBits(U8 b) {
+      b = (b & 0xF0) >> 4 | (b & 0x0F) << 4;
+      b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
+      b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
+      return b;
+    }
+  public:
+    CharRevModel(): t0(new Counter[256]), t1(new Counter[65536]),
+                   t2(MEM+15), t3(MEM+17), t4(MEM+18), t5((MEM>=1)*(MEM+18)),
+                   t6((MEM>=3)*(MEM+18)), t7((MEM>=3)*(MEM+18)),
+                   t8((MEM>=5)*(MEM+18-(MEM>=6))),
+                   t9((MEM>=5)*(MEM+18-(MEM>=6))),
+                   cxt(new U32[N]) {
+      cp0=&t0[0];
+      cp1=&t1[0];
+      memset(cxt, 0, N*sizeof(U32));
+      memset(t0, 0, 256*sizeof(Counter));
+      memset(t1, 0, 65536*sizeof(Counter));
+    }
+    ~CharRevModel() {
+      delete[] t0;
+      delete[] t1;
+      delete[] cxt;
+    }
+    void model();
+  };
+
+  inline void CharRevModel::model() {
+
+    int y = ch(ch.bpos()==0)&1;
+    cp0->add(y);
+    cp1->add(y);
+
+    if (ch.bpos()==0) {
+      // CharModel uses paq_hash(ch(1), i) here.
+      // CharRevModel uses the bit-reversed previous byte instead, so all
+      // order-2 through order-9 contexts are tracked in reversed-bit space.
+      const U8 rev=reverseBits(ch(1));
+      for (int i=N-1; i>0; --i)
+        cxt[i]=cxt[i-1]^paq_hash(rev, i);
+      t2.update(cxt[2]);
+      t3.update(cxt[3]);
+      t4.update(cxt[4]);
+      if (MEM>=1)
+        t5.update(cxt[5]);
+      if (MEM>=3) {
+        t6.update(cxt[6]);
+        t7.update(cxt[7]);
+      }
+      if (MEM>=5) {
+        t8.update(cxt[8]);
+        t9.update(cxt[9]);
+      }
+    }
+
+    const U8 revCur=reverseBits(ch());
+    const U8 revPrev=reverseBits(ch(1));
+    cp0=&t0[revCur];
+    cp1=&t1[revCur+256*revPrev];
+
+    mixer.write(cp0->get0(), cp0->get1());
+    mixer.write(cp1->get0(), cp1->get1());
+    t2.write();
+    t3.write();
+    t4.write();
+    if (MEM>=1)
+      t5.add();
+    if (MEM>=3) {
+      t6.write();
+      t7.add();
+    }
+    if (MEM>=5) {
+      t8.write();
+      t9.add();
+    }
+  }
+
   //////////////////////////// Predictor ////////////////////////////
 
   /* A Predictor adjusts the model probability using SSE and passes it
@@ -969,6 +1064,7 @@ namespace paq6v2{
     // Models
     DefaultModel defaultModel;
     CharModel charModel;
+    CharRevModel charRevModel;
 
     enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
       SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
@@ -1055,6 +1151,7 @@ namespace paq6v2{
     ch.update(y);
     defaultModel.model(); 
     charModel.model();
+    charRevModel.model();
 
     // Combine probabilities
     nextp=mixer.predict();
