@@ -947,7 +947,6 @@ namespace paq6v2{
     }
   }
 
-<<<<<<< HEAD
   //////////////////////////// charRevModel ////////////////////////////
 
   // CharRevModel mirrors CharModel, but it learns on bit-reversed bytes
@@ -1043,7 +1042,7 @@ namespace paq6v2{
     }
   }
 
-=======
+
    //////////////////////////// bitwiseCharModel ////////////////////////////
 
   // A BitwiseCharModel contains n-gram models from 0 to 9
