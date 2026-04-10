@@ -13,3 +13,4 @@ ea_transpose
 *.json
 .DS_Store
 *.res
+min_entropy_datasets/

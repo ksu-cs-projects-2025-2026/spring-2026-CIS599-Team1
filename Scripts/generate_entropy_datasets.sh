@@ -2,9 +2,12 @@
 
 OUTPUT_DIR="min_entropy_datasets"
 BLOCKS=977
-FILES_PER_LEVEL=100
+FILES_PER_LEVEL=3
 
-mkdir -p $OUTPUT_DIR
+# path to your binary (relative to this script location)
+DJEN="../../djenrandom/djenrandom"
+
+mkdir -p "$OUTPUT_DIR"
 
 # H_min → bias mapping
 declare -A bias_map=(
@@ -22,22 +25,22 @@ declare -A bias_map=(
 
 for H in "${!bias_map[@]}"
 do
-    BIAS=${bias_map[$H]}
+    BIAS="${bias_map[$H]}"
     LEVEL_DIR="${OUTPUT_DIR}/hmin_${H}"
     mkdir -p "$LEVEL_DIR"
 
     echo "=== H_min=$H (bias=$BIAS) ==="
 
-    for i in $(seq 1 $FILES_PER_LEVEL)
+    for i in $(seq 1 "$FILES_PER_LEVEL")
     do
         SEED="h${H}_run${i}"
         OUTPUT_FILE="${LEVEL_DIR}/data_${i}.bin"
 
-        ./djenrandom \
+        "$DJEN" \
             -D "$SEED" \
             -m biased \
-            --bias $BIAS \
-            -k $BLOCKS \
+            --bias "$BIAS" \
+            -k "$BLOCKS" \
             -b \
             -o "$OUTPUT_FILE"
     done
