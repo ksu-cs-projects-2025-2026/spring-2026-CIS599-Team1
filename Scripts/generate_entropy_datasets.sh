@@ -2,7 +2,8 @@
 
 OUTPUT_DIR="min_entropy_datasets"
 BLOCKS=977
-FILES_PER_LEVEL=3
+FILES_PER_LEVEL=100
+SECONDS=0 #timer becauses why not
 
 # path to your binary (relative to this script location)
 DJEN="../../djenrandom/djenrandom"
@@ -45,3 +46,6 @@ do
             -o "$OUTPUT_FILE"
     done
 done
+
+printf "Total elapsed time: %02d:%02d:%02d\n" \
+    $((SECONDS/3600)) $((SECONDS%3600/60)) $((SECONDS%60))

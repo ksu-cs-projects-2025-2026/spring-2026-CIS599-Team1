@@ -14,3 +14,4 @@ ea_transpose
 .DS_Store
 *.res
 min_entropy_datasets/
+*.csv
