@@ -1262,6 +1262,117 @@ inline void BitwiseCharModel::model() {
     mixer.add(slow_bias.get0() , slow_bias.get1() );
   }
 
+  //////////////////////////// MatchCharModel ////////////////////////////
+
+/* MatchCharModel is a LZ-style match model. It hashes recent bytes into
+   a rolling context, stores the last seen position of each context in a
+   flat hash table, and when the same context recurs it reads ahead in the
+   buffer at the old position to predict the current bit.
+
+   Assumes MEM=1. Single order (order-2 context), one hash table.
+   Table size: 2^17 entries * 4 bytes = 512 KB.
+*/
+class MatchCharModel: public Model {
+
+  static const int  TABLE_N    = 17;
+  static const U32  TABLE_MASK = (1u << TABLE_N) - 1;
+  static const U32  INVALID    = 0xFFFFFFFFu;
+
+  U32 *table;    // last seen absolute position per context
+  U32  cxt;      // rolling order-2 context hash
+  U32  matchPos; // absolute position of the matching context
+  int  matchLen; // number of verified bits so far
+  U32  matchDist;// distance in bytes
+
+  static int matchStrength(int len, U32 dist) {
+    int s = min(len, 32);
+    if      (dist > 8192) s = s * 3 / 4;
+    else if (dist > 1024) s = s * 7 / 8;
+    return max(1, s);
+  }
+
+public:
+  MatchCharModel()
+    : cxt(0), matchPos(0), matchLen(0), matchDist(0)
+  {
+    table = (U32*)malloc((1u << TABLE_N) * sizeof(U32));
+    if (!table) handler();
+
+    for (int i = 0; i < (1 << TABLE_N); i++)
+      table[i] = INVALID;
+  }
+
+  ~MatchCharModel() {
+    free(table);
+  }
+
+  void model() {
+    const int bpos = ch.bpos();  // 0-7
+
+    // ── Byte boundary ────────────────────────────────────────────────
+    if (bpos == 0) {
+
+      if (matchLen > 0) {
+        const U8  matchByte = (U8)ch[matchPos + 1];
+        const int expected   = matchByte & 1;
+        const int actual     = (int)(ch(1) & 1);
+
+        if (expected == actual)
+          ++matchLen;
+        else
+          matchLen = 0;
+      }
+
+      cxt = (cxt * 257 + ch(1) + 1) & TABLE_MASK;
+
+      const U32 prevPos = table[cxt];
+      table[cxt] = ch.pos();
+
+      if (prevPos != INVALID) {
+        const U32 dist = ch.pos() - prevPos;
+
+        if (dist > 0 && dist < (1u << 16)) {
+          matchPos  = prevPos;
+          matchLen  = 1;
+          matchDist = dist;
+        } else {
+          matchLen = 0;
+        }
+      } else {
+        matchLen = 0;
+      }
+    }
+
+    // ── Bit-level verification ───────────────────────────────────────
+    if (matchLen > 0 && bpos > 0) {
+      const U8 matchByte = (U8)ch[matchPos + 1];
+
+      const int expected = (matchByte >> (7 - (bpos - 1))) & 1;
+      const int actual   = (int)(ch() & 1);
+
+      if (expected == actual)
+        ++matchLen;
+      else
+        matchLen = 0;
+    }
+
+    // ── Prediction ────────────────────────────────────────────────────
+    if (matchLen > 0) {
+      const U8 matchByte = (U8)ch[matchPos + 1];
+
+      const int predictedBit = (matchByte >> (7 - bpos)) & 1;
+      const int s = matchStrength(matchLen, matchDist);
+
+      if (predictedBit)
+        mixer.write(0, s);
+      else
+        mixer.write(s, 0);
+    } else {
+      mixer.write(0, 0);
+    }
+  }
+};
+
   //////////////////////////// Predictor ////////////////////////////
 
   /* A Predictor adjusts the model probability using SSE and passes it
@@ -1288,6 +1399,7 @@ inline void BitwiseCharModel::model() {
     BitwiseCharModel bitwiseCharModel;
     CharRevModel charRevModel;
     CharComplementModel charComplementModel;
+    MatchCharModel matchCharModel;
 
     enum {SSE1=256*4*2, SSE2=32,  // SSE dimensions (contexts, probability bins)
       SSESCALE=1024/SSE2};      // Number of mapped probabilities between bins
@@ -1378,6 +1490,7 @@ inline void BitwiseCharModel::model() {
     //bitwiseCharModel.model();
     //biasAwareCharModel.model();
     //charRevModel.model();
+    //matchCharModel.model();
 
     // Combine probabilities
     nextp=mixer.predict();
